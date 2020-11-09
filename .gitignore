@@ -134,6 +134,7 @@ experimental/*
 
 
 # Custom 
-examples/wav2vec/{data,exp,ignore}
+examples/wav2vec/{data,exp}
+examples/wav2vec/shit
 
 
