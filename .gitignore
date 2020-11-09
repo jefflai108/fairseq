@@ -131,3 +131,9 @@ data-bin/
 
 # Experimental Folder
 experimental/*
+
+
+# Custom 
+examples/wav2vec/{data,exp,ignore}
+
+
