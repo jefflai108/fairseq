@@ -134,7 +134,7 @@ experimental/*
 
 
 # Custom 
-examples/wav2vec/{data,exp}
-examples/wav2vec/shit
+examples/wav2vec/exp
+apex/
 
 
