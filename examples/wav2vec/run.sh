@@ -43,6 +43,7 @@ if [ $stage -eq 3 ]; then
     valid_subset=dev-clean
     expdir=exp/train-clean-100-debug
     datadir=data/debug/
+    mkdir -p $expdir
 	python /data/sls/temp/clai24/knowledge-transfer/fairseq/train.py --distributed-world-size ${ngpu} --distributed-port 0 $datadir --save-dir $expdir \
         --train-subset $train_subset --valid-subset $valid_subset \
 		--num-workers 8 --task audio_pretraining --criterion wav2vec_kd --arch wav2vec2 \

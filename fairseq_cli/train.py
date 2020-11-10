@@ -73,12 +73,10 @@ def main(cfg: DictConfig) -> None:
     # Build model and criterion
     print(cfg.model)
     #exit()
-
     teacher_cfg = pickle.load(open("teacher_args/wav2vec.base.cfg", 'rb'))
     teacher_model = task.build_model(teacher_cfg)
     teacher_model.load_state_dict(torch.load("wav2vec_small.pt")['model'])
     model = task.build_model(cfg.model)
-    #criterion = task.build_criterion(cfg.criterion)
     criterion = task.build_criterion(cfg.criterion)
     criterion.add_teacher(teacher_model) # add teacher model
     #exit()
@@ -92,6 +90,7 @@ def main(cfg: DictConfig) -> None:
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
+    exit()
     
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
