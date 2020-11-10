@@ -12,13 +12,15 @@ from fairseq.criterions import FairseqCriterion, register_criterion
 from fairseq.logging.meters import safe_round
 
 
-@register_criterion("wav2vec")
+@register_criterion("wav2vec_kd")
 class Wav2vecCriterion(FairseqCriterion):
     def __init__(self, task, infonce=False, loss_weights=None, log_keys=None):
         super().__init__(task)
         self.infonce = infonce
         self.loss_weights = None if loss_weights is None else eval(loss_weights)
         self.log_keys = [] if log_keys is None else eval(log_keys)
+        self.teacher_model = None
+        print('shit shit')
 
     @staticmethod
     def add_args(parser):
@@ -32,6 +34,13 @@ class Wav2vecCriterion(FairseqCriterion):
                             help='output keys to log')
         # fmt: on
 
+    def add_teacher(self, teacher_model):
+        """
+        add teacher model for KD
+        """
+        self.teacher_model = teacher_model
+        self.teacher_model.eval()
+
     def forward(self, model, sample, reduce=True, log_pred=False):
         """Compute the loss for the given sample.
 
@@ -40,9 +49,19 @@ class Wav2vecCriterion(FairseqCriterion):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
+
+        # student
         net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
         target = model.get_targets(sample, net_output)
+    
+        # teacher -- not updated
+        with torch.no_grad():
+            teacher_net_output = self.teacher_model(**sample["net_input"])
+            teacher_logits = self.teacher_model.get_logits(teacher_net_output).float()
+            teacher_target = self.teacher_model.get_targets(sample, teacher_net_output)
+            assert teacher_target == target
+            del teacher_target
 
         weights = None
         if hasattr(model, "get_target_weights") and not self.infonce:
@@ -56,6 +75,10 @@ class Wav2vecCriterion(FairseqCriterion):
         print(self.infonce)
         pdb.set_trace()
         if self.infonce:
+            kldiv_loss_fct = nn.KLDivLoss(reduction="batchmean")
+            loss = kldiv_loss_fct(logits, teacher_logits) * (2.0) ** 2
+            loss = torch.mean(loss)
+            
             loss = F.cross_entropy(
                 logits,
                 target,

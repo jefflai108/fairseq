@@ -70,8 +70,14 @@ def main(cfg: DictConfig) -> None:
         task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # Build model and criterion
-    model = task.build_model(cfg.model)
+    print(cfg.model)
+    exit()
+    teacher_model = task.build_model(cfg.model)
+    student_model = task.build_model(cfg.model)
+    #criterion = task.build_criterion(cfg.criterion)
     criterion = task.build_criterion(cfg.criterion)
+    criterion.add_teacher(teacher_model) # add teacher model
+    exit()
     logger.info(model)
     logger.info("task: {} ({})".format(cfg.task._name, task.__class__.__name__))
     logger.info("model: {} ({})".format(cfg.model._name, model.__class__.__name__))
@@ -82,7 +88,7 @@ def main(cfg: DictConfig) -> None:
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
-    exit()
+    
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
         quantizer = quantization_utils.Quantizer(
@@ -338,11 +344,13 @@ def get_valid_stats(cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]) ->
 
 
 def cli_main(modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] = None) -> None:
+    import pdb 
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
+    print(args)
 
     cfg = convert_namespace_to_omegaconf(args)
-
+    exit()
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
