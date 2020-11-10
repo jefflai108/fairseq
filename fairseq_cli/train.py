@@ -43,6 +43,8 @@ logger = logging.getLogger("fairseq_cli.train")
 
 
 def main(cfg: DictConfig) -> None:
+    print(cfg)
+    exit()
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 

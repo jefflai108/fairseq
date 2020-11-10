@@ -187,6 +187,8 @@ class AudioPretrainingTask(LegacyFairseqTask):
         if getattr(args, 'eval_wer', False) and not self.is_ctc:
             self.sequence_generator = self.build_generator([model], args, )
             self.tokenizer = encoders.build_tokenizer(args)
+        print('build model')
+        exit()
         return model
 
     def _inference_with_wer(self, generator, sample, model):
