@@ -44,7 +44,7 @@ logger = logging.getLogger("fairseq_cli.train")
 
 def main(cfg: DictConfig) -> None:
     print(cfg)
-    exit()
+    
     if isinstance(cfg, argparse.Namespace):
         cfg = convert_namespace_to_omegaconf(cfg)
 
@@ -82,7 +82,7 @@ def main(cfg: DictConfig) -> None:
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
-
+    exit()
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
         quantizer = quantization_utils.Quantizer(

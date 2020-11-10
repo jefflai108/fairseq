@@ -188,7 +188,7 @@ class AudioPretrainingTask(LegacyFairseqTask):
             self.sequence_generator = self.build_generator([model], args, )
             self.tokenizer = encoders.build_tokenizer(args)
         print('build model')
-        exit()
+        
         return model
 
     def _inference_with_wer(self, generator, sample, model):
