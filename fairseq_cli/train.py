@@ -353,14 +353,6 @@ def cli_main(modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] 
 
     cfg = convert_namespace_to_omegaconf(args)
     
-    import pickle 
-    f = open('teacher-args/wav2vec_small.cfg', 'rb')
-    teacher_cfg = pickle.load(f)
-    f.close()
-    print(teacher_cfg)
-    
-    exit()
-    
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
