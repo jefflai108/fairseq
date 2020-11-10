@@ -9,6 +9,7 @@ Train a new model on one or across multiple GPUs.
 
 import argparse
 import logging
+import pickle
 import math
 import os
 import sys
@@ -71,13 +72,16 @@ def main(cfg: DictConfig) -> None:
 
     # Build model and criterion
     print(cfg.model)
-    exit()
-    teacher_model = task.build_model(cfg.model)
-    student_model = task.build_model(cfg.model)
+    #exit()
+
+    teacher_cfg = pickle.load(open("teacher_args/wav2vec.base.cfg", 'rb'))
+    teacher_model = task.build_model(teacher_cfg)
+    teacher_model.load_state_dict(torch.load("wav2vec_small.pt")['model'])
+    model = task.build_model(cfg.model)
     #criterion = task.build_criterion(cfg.criterion)
     criterion = task.build_criterion(cfg.criterion)
     criterion.add_teacher(teacher_model) # add teacher model
-    exit()
+    #exit()
     logger.info(model)
     logger.info("task: {} ({})".format(cfg.task._name, task.__class__.__name__))
     logger.info("model: {} ({})".format(cfg.model._name, model.__class__.__name__))
@@ -350,7 +354,7 @@ def cli_main(modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] 
     print(args)
 
     cfg = convert_namespace_to_omegaconf(args)
-    exit()
+    #exit()
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
