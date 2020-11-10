@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+import copy
 
 import torch
 import torch.nn.functional as F
@@ -39,7 +40,7 @@ class Wav2vecCriterion(FairseqCriterion):
         add teacher model for KD
         """
         self.teacher_model = teacher_model
-        self.teacher_model.eval()
+        #self.teacher_model.eval()
 
     def forward(self, model, sample, reduce=True, log_pred=False):
         """Compute the loss for the given sample.
@@ -51,16 +52,22 @@ class Wav2vecCriterion(FairseqCriterion):
         """
 
         # student
+        teacher_sample = copy.deepcopy(sample)
         net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
         target = model.get_targets(sample, net_output)
     
         # teacher -- not updated
         with torch.no_grad():
-            teacher_net_output = self.teacher_model(**sample["net_input"])
+            existing_masks = {"mask_indices":net_output["mask_indices"], "mask_channel_indices":net_output["mask_channel_indices"]}
+            teacher_net_output = self.teacher_model(**teacher_sample["net_input"], existing_masks=existing_masks)
             teacher_logits = self.teacher_model.get_logits(teacher_net_output).float()
-            teacher_target = self.teacher_model.get_targets(sample, teacher_net_output)
-            assert teacher_target == target
+            teacher_target = self.teacher_model.get_targets(teacher_sample, teacher_net_output)
+            try:
+                assert (teacher_target == target).all()
+            except:
+                import pdb
+                pdb.set_trace()
             del teacher_target
 
         weights = None
@@ -71,19 +78,17 @@ class Wav2vecCriterion(FairseqCriterion):
 
         losses = []
 
-        import pdb 
-        print(self.infonce)
-        pdb.set_trace()
         if self.infonce:
-            kldiv_loss_fct = nn.KLDivLoss(reduction="batchmean")
+            kldiv_loss_fct = torch.nn.KLDivLoss(reduction="batchmean")
             loss = kldiv_loss_fct(logits, teacher_logits) * (2.0) ** 2
             loss = torch.mean(loss)
-            
+            '''
             loss = F.cross_entropy(
                 logits,
                 target,
                 reduction="sum" if reduce else "none",
             )
+            '''
         else:
             loss = F.binary_cross_entropy_with_logits(
                 logits,

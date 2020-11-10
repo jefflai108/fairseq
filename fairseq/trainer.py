@@ -458,7 +458,6 @@ class Trainer(object):
         self.model.train()
         self.criterion.train()
         self.zero_grad()
-        exit()
 
         metrics.log_start_time("train_wall", priority=800, round=0)
 

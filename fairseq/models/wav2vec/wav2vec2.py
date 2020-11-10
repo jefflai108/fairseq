@@ -448,8 +448,19 @@ class Wav2Vec2Model(BaseFairseqModel):
                 .expand(-1, T, -1)
             )
             x[mask_channel_indices] = 0
+        else:
+            mask_channel_indices = None
 
-        return x, mask_indices
+        return x, mask_indices, mask_channel_indices
+
+    def apply_existing_mask(self, x, mask_indices, mask_channel_indices, padding_mask):
+        B, T, C = x.shape
+        if mask_indices is not None:
+            x[mask_indices] = self.mask_emb
+        if mask_channel_indices is not None:
+            x[mask_channel_indices] = 0
+        return x, mask_indices, mask_channel_indices
+
 
     def sample_negatives(self, y, num):
 
@@ -524,7 +535,7 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         return logits
 
-    def forward(self, source, padding_mask=None, mask=True, features_only=False):
+    def forward(self, source, padding_mask=None, mask=True, features_only=False, existing_masks=None):
 
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
@@ -567,8 +578,17 @@ class Wav2Vec2Model(BaseFairseqModel):
             curr_temp = q["temp"]
             features = self.project_inp(features)
 
-        if mask:
-            x, mask_indices = self.apply_mask(features, padding_mask)
+        if mask and existing_masks is None:
+            x, mask_indices, mask_channel_indices = self.apply_mask(features, padding_mask)
+            if mask_indices is not None:
+                y = unmasked_features[mask_indices].view(
+                    unmasked_features.size(0), -1, unmasked_features.size(-1)
+                )
+            else:
+                y = unmasked_features
+        elif mask:
+            mask_indices, mask_channel_indices = existing_masks["mask_indices"], existing_masks["mask_channel_indices"]
+            x, mask_indices, mask_channel_indices = self.apply_existing_mask(features, mask_indices, mask_channel_indices, padding_mask)
             if mask_indices is not None:
                 y = unmasked_features[mask_indices].view(
                     unmasked_features.size(0), -1, unmasked_features.size(-1)
@@ -637,6 +657,8 @@ class Wav2Vec2Model(BaseFairseqModel):
             result["code_perplexity"] = code_ppl
             result["num_vars"] = num_vars
             result["temp"] = curr_temp
+            result["mask_indices"] = mask_indices
+            result["mask_channel_indices"] = mask_channel_indices
 
         return result
 
