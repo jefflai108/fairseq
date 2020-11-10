@@ -54,17 +54,7 @@ if [ $stage -eq 3 ]; then
 		--encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
 		--loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
 		--max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test \
-        --teacher-log-keys '["prob_perplexity","code_perplexity","temp"]' --teacher-quantize-targets --teacher-extractor-mode default \
-		--teacher-conv-feature-layers '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] * 2' --teacher-final-dim 256 --teacher-latent-vars 320 \
-		--teacher-latent-groups 2 --teacher-latent-temp '(2,0.5,0.999995)' --teacher-infonce --teacher-optimizer adam \
-		--teacher-adam-betas '(0.9,0.98)' --teacher-adam-eps 1e-06 --teacher-lr-scheduler polynomial_decay --teacher-total-num-update 400000 \
-		--teacher-lr 0.0005 --teacher-warmup-updates 32000 --teacher-mask-length 10 --teacher-mask-prob 0.65 --teacher-mask-selection static --teacher-mask-other 0 \
-		--teacher-encoder-layerdrop 0.05 --teacher-dropout-input 0.1 --teacher-dropout-features 0.1 --teacher-feature-grad-mult 0.1 \
-		--teacher-loss-weights '[0.1, 10]' --teacher-conv-pos 128 --teacher-conv-pos-groups 16 --teacher-num-negatives 100 --teacher-cross-sample-negatives 0 \
-		--teacher-max-sample-size 250000 --teacher-min-sample-size 32000 --teacher-dropout 0.1 --teacher-attention-dropout 0.1 --teacher-weight-decay 0.01 \
-		--teacher-max-tokens 1400000 --teacher-max-update 400000 --teacher-skip-invalid-size-inputs-valid-test --teacher-ddp-backend no_c10d 2>&1 | tee $expdir/train.log
-
+		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d 2>&1 | tee $expdir/train.log
 fi
 
 

@@ -344,13 +344,19 @@ def get_valid_stats(cfg: DictConfig, trainer: Trainer, stats: Dict[str, Any]) ->
 
 
 def cli_main(modify_parser: Optional[Callable[[argparse.ArgumentParser], None]] = None) -> None:
-    import pdb 
     parser = options.get_training_parser()
     args = options.parse_args_and_arch(parser, modify_parser=modify_parser)
-    print(args)
 
     cfg = convert_namespace_to_omegaconf(args)
+    
+    import pickle 
+    f = open('teacher-args/wav2vec_small.cfg', 'rb')
+    teacher_cfg = pickle.load(f)
+    f.close()
+    print(teacher_cfg)
+    
     exit()
+    
     if args.profile:
         with torch.cuda.profiler.profile():
             with torch.autograd.profiler.emit_nvtx():
