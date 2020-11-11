@@ -56,11 +56,17 @@ class Wav2vecCriterion(FairseqCriterion):
         net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
         target = model.get_targets(sample, net_output)
+        #if torch.isinf(logits).any():
+        #    print("inf exist in student logits")
+        #    import pdb
+        #    pdb.set_trace()
+            
     
         # teacher -- not updated
         with torch.no_grad():
             existing_masks = {"mask_indices":net_output["mask_indices"], "mask_channel_indices":net_output["mask_channel_indices"]}
-            teacher_net_output = self.teacher_model(**teacher_sample["net_input"], existing_masks=existing_masks)
+            existing_neg_idxs = net_output["neg_idxs"]
+            teacher_net_output = self.teacher_model(**teacher_sample["net_input"], existing_masks=existing_masks, existing_neg_idxs=existing_neg_idxs)
             teacher_logits = self.teacher_model.get_logits(teacher_net_output).float()
             teacher_target = self.teacher_model.get_targets(teacher_sample, teacher_net_output)
             try:
@@ -69,6 +75,10 @@ class Wav2vecCriterion(FairseqCriterion):
                 import pdb
                 pdb.set_trace()
             del teacher_target
+            #if torch.isinf(teacher_logits).any():
+            #    print("inf exist in teacher logits")
+            #    import pdb
+            #    pdb.set_trace()
 
         weights = None
         if hasattr(model, "get_target_weights") and not self.infonce:
@@ -79,16 +89,23 @@ class Wav2vecCriterion(FairseqCriterion):
         losses = []
 
         if self.infonce:
-            kldiv_loss_fct = torch.nn.KLDivLoss(reduction="batchmean")
-            loss = kldiv_loss_fct(logits, teacher_logits) * (2.0) ** 2
-            loss = torch.mean(loss)
-            '''
-            loss = F.cross_entropy(
-                logits,
-                target,
-                reduction="sum" if reduce else "none",
-            )
-            '''
+            temperature = 2.0
+            kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum")
+            loss = kldiv_loss_fct(
+                    F.softmax(logits / temperature, dim=-1),
+                    F.softmax(teacher_logits / temperature, dim=-1),
+                    ) # * (temperature) ** 2
+            if torch.isinf(loss).any():
+                import pdb
+                pdb.set_trace()
+            #loss = torch.mean(loss)
+            
+            #loss = F.cross_entropy(
+            #    logits,
+            #    target,
+            #    reduction="sum" if reduce else "none",
+            #)
+            
         else:
             loss = F.binary_cross_entropy_with_logits(
                 logits,

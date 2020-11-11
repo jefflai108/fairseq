@@ -520,6 +520,20 @@ class Wav2Vec2Model(BaseFairseqModel):
         )  # to NxBxTxC
         return negs, neg_idxs
 
+    def sample_negatives_from_existing_index(self, y, neg_idxs, num):
+        if self.n_negatives == 0 and self.cross_sample_negatives == 0:
+            return y.new(0)
+
+        bsz, tsz, fsz = y.shape
+        y = y.view(-1, fsz)  # BTC => (BxT)C
+        negs = y[neg_idxs.view(-1)]
+        negs = negs.view(
+            bsz, num, self.n_negatives + self.cross_sample_negatives, fsz
+        ).permute(
+            2, 0, 1, 3
+        )  # to NxBxTxC
+        return negs, neg_idxs
+
     def compute_preds(self, x, y, negatives):
 
         neg_is_pos = (y == negatives).all(-1)
@@ -535,7 +549,7 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         return logits
 
-    def forward(self, source, padding_mask=None, mask=True, features_only=False, existing_masks=None):
+    def forward(self, source, padding_mask=None, mask=True, features_only=False, existing_masks=None, existing_neg_idxs=None):
 
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
@@ -616,12 +630,20 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = self.project_q(y)
 
             if self.negatives_from_everywhere:
-                neg_cands, *_ = self.quantizer(unmasked_features, produce_targets=False)
-                negs, _ = self.sample_negatives(neg_cands, y.size(1))
-                negs = self.project_q(negs)
+                if existing_neg_idxs is not None:
+                    neg_cands, *_ = self.quantizer(unmasked_features, produce_targets=False)
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(neg_cands, existing_neg_idxs, y.size(1))
+                    negs = self.project_q(negs)
+                else:
+                    neg_cands, *_ = self.quantizer(unmasked_features, produce_targets=False)
+                    negs, neg_idxs = self.sample_negatives(neg_cands, y.size(1))
+                    negs = self.project_q(negs)
 
             else:
-                negs, _ = self.sample_negatives(y, y.size(1))
+                if existing_neg_idxs is not None:
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(y, existing_neg_idxs, y.size(1))
+                else:
+                    negs, neg_idxs = self.sample_negatives(y, y.size(1))
 
             if self.codebook_negatives > 0:
                 cb_negs = self.quantizer.sample_from_codebook(
@@ -636,10 +658,17 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = self.project_q(y)
 
             if self.negatives_from_everywhere:
-                negs, _ = self.sample_negatives(unmasked_features, y.size(1))
-                negs = self.project_q(negs)
+                if existing_neg_idxs is not None:
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(unmasked_features, existing_neg_idxs, y.size(1))
+                    negs = self.project_q(negs)
+                else:
+                    negs, neg_idxs = self.sample_negatives(unmasked_features, y.size(1))
+                    negs = self.project_q(negs)
             else:
-                negs, _ = self.sample_negatives(y, y.size(1))
+                if existing_neg_idxs is not None:
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(y, existing_neg_idxs, y.size(1))
+                else:
+                    negs, neg_idxs = self.sample_negatives(y, y.size(1))
 
         x = x[mask_indices].view(x.size(0), -1, x.size(-1))
 
@@ -659,6 +688,7 @@ class Wav2Vec2Model(BaseFairseqModel):
             result["temp"] = curr_temp
             result["mask_indices"] = mask_indices
             result["mask_channel_indices"] = mask_channel_indices
+            result["neg_idxs"] = neg_idxs
 
         return result
 
