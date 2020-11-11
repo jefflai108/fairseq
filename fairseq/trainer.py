@@ -453,7 +453,6 @@ class Trainer(object):
     @metrics.aggregate("train")
     def train_step(self, samples, raise_oom=False):
         """Do forward, backward and parameter update."""
-        print('Do forward, backward and parameter update')
         self._set_seed()
         self.model.train()
         self.criterion.train()

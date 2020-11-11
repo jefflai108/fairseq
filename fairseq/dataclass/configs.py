@@ -115,6 +115,7 @@ class CommonConfig(FairseqDataclass):
         },
     )
     fp16: bool = field(default=False, metadata={"help": "use FP16"})
+    load_extractor: bool = field(default=False, metadata={"help": "load teacher model weight"})
     memory_efficient_fp16: bool = field(
         default=False,
         metadata={
