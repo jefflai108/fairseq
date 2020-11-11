@@ -71,8 +71,6 @@ def main(cfg: DictConfig) -> None:
         task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # Build model and criterion
-    print(cfg.model)
-    #exit()
     teacher_cfg = pickle.load(open("teacher_args/wav2vec.base.cfg", 'rb'))
     teacher_model = task.build_model(teacher_cfg)
     teacher_model.load_state_dict(torch.load("wav2vec_small.pt")['model'])
@@ -86,10 +84,15 @@ def main(cfg: DictConfig) -> None:
     logger.info(
         "criterion: {} ({})".format(cfg.criterion._name, criterion.__class__.__name__)
     )
+    logger.info("num. teacher model params: {} (num. teacher trained: {})".format(
+        sum(p.numel() for p in teacher_model.parameters()),
+        sum(p.numel() for p in teacher_model.parameters() if p.requires_grad),
+    ))
     logger.info("num. model params: {} (num. trained: {})".format(
         sum(p.numel() for p in model.parameters()),
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
+
     exit()
     
     # (optionally) Configure quantization

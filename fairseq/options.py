@@ -359,5 +359,6 @@ def add_model_args(parser):
     group.add_argument('--arch', '-a', metavar='ARCH',
                        choices=ARCH_MODEL_REGISTRY.keys(),
                        help='model architecture')
+
     # fmt: on
     return group
