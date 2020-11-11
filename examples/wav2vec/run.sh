@@ -56,7 +56,7 @@ if [ $stage -eq 3 ]; then
 		--encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
 		--loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
 		--max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --log-format tqdm --ddp-backend no_c10d \
         --encoder-attention-heads 6 --encoder-embed-dim 480 --encoder-ffn-embed-dim 1920 --encoder-layers 6 --latent-vars 160 2>&1 | tee $expdir/train.log
 fi
 
@@ -79,7 +79,7 @@ if [ $stage -eq 4 ]; then
 		--encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
 		--loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
 		--max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --log-format tqdm --ddp-backend no_c10d \
         --encoder-attention-heads 6 --encoder-embed-dim 480 --encoder-ffn-embed-dim 1920 --encoder-layers 3 --latent-vars 160 2>&1 | tee $expdir/train.log
 fi
 
@@ -103,7 +103,7 @@ if [ $stage -eq 5 ]; then
 		--encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
 		--loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
 		--max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --log-format tqdm --ddp-backend no_c10d \
         --load-extractor --encoder-attention-heads 6 --encoder-embed-dim 480 --encoder-ffn-embed-dim 1920 --encoder-layers 6 --latent-vars 160 2>&1 | tee $expdir/train.log
 fi
 
@@ -126,7 +126,7 @@ if [ $stage -eq 6 ]; then
 		--encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
 		--loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
 		--max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --log-format tqdm --ddp-backend no_c10d \
         --load-extractor --encoder-attention-heads 6 --encoder-embed-dim 480 --encoder-ffn-embed-dim 1920 --encoder-layers 3 --latent-vars 160 2>&1 | tee $expdir/train.log
 fi
 

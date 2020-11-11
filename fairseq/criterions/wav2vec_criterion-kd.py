@@ -90,12 +90,11 @@ class Wav2vecCriterion(FairseqCriterion):
 
         if self.infonce:
             kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum" if reduce else "none")
-            temperature = 2.0
-            # apply softmax on the logits before KL
+            # apply log_softmax on the logits before KL
             loss = kldiv_loss_fct(
-                    F.softmax(logits / temperature, dim=-1),
-                    F.softmax(teacher_logits / temperature, dim=-1),
-                    ) # * (temperature) ** 2
+                    F.log_softmax(logits, dim=-1),
+                    F.softmax(teacher_logits, dim=-1),
+                    ) 
             if torch.isinf(loss).any():
                 import pdb
                 pdb.set_trace()

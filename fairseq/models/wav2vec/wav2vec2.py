@@ -545,9 +545,11 @@ class Wav2Vec2Model(BaseFairseqModel):
         logits /= self.logit_temp
 
         # assign score "-inf" to wrong assignments so that their scores exp(-inf) == 0 
-        # in either CE or KL
+        # in either CE or KL. However, we were getting some issue with "-inf", so instead 
+        # we replaced it with a large negative value e.g. -100000
         if neg_is_pos.any(): 
-            logits[1:][neg_is_pos] = float("-inf")
+            #logits[1:][neg_is_pos] = float("-inf")
+            logits[1:][neg_is_pos] = -100000
 
         return logits
 
