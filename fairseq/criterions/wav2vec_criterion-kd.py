@@ -52,11 +52,9 @@ class Wav2vecCriterion(FairseqCriterion):
         """
 
         # student
-        print('sample', sample["net_input"]["source"], torch.isinf(sample["net_input"]["source"]).any())
         teacher_sample = copy.deepcopy(sample)
         net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
-        print('student logis', logits, torch.isinf(logits).any())
         target = model.get_targets(sample, net_output)
         #if torch.isinf(logits).any():
         #    print("inf exist in student logits")
@@ -92,15 +90,8 @@ class Wav2vecCriterion(FairseqCriterion):
 
         if self.infonce:
             kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum" if reduce else "none")
-            loss = kldiv_loss_fct(logits, teacher_logits) * (2.0) ** 2
-            #loss = torch.mean(loss)
-            loss = F.cross_entropy(
-                logits,
-                target,
-                reduction="sum" if reduce else "none",
-            )
             temperature = 2.0
-            kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum")
+            # apply softmax on the logits before KL
             loss = kldiv_loss_fct(
                     F.softmax(logits / temperature, dim=-1),
                     F.softmax(teacher_logits / temperature, dim=-1),
