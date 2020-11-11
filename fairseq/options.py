@@ -114,6 +114,12 @@ def parse_args_and_arch(
     # in order to eagerly import custom tasks, optimizers, architectures, etc.
     usr_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
     usr_parser.add_argument("--user-dir", default=None)
+    usr_parser.add_argument(
+            "--load-extractor",
+            action="store_true",
+            help="load feature extractor from teacher model",
+        )
+
     usr_args, _ = usr_parser.parse_known_args(input_args)
     utils.import_user_module(usr_args)
 
@@ -342,6 +348,7 @@ def add_generation_args(parser):
 def add_interactive_args(parser):
     group = parser.add_argument_group("Interactive")
     gen_parser_from_dataclass(group, InteractiveConfig())
+
 
 
 def add_model_args(parser):
