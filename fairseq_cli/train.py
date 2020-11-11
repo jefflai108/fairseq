@@ -75,9 +75,9 @@ def main(cfg: DictConfig) -> None:
     teacher_model = task.build_model(teacher_cfg)
     teacher_model.load_state_dict(torch.load("wav2vec_small.pt")['model'])
     model = task.build_model(cfg.model)
-    if cfg['common']['load_extractor']:
+    if cfg['common']['load_extractor']: # load pretrained feature extractor 
         student_dict = {k:v for k, v in torch.load("wav2vec_small.pt")['model'].items() if k.startswith("feature_extractor")}
-        print("student load teacher model")
+        logger.info("student load teacher model")
         model.load_state_dict(student_dict, strict=False)
     criterion = task.build_criterion(cfg.criterion)
     criterion.add_teacher(teacher_model) # add teacher model
@@ -97,7 +97,7 @@ def main(cfg: DictConfig) -> None:
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
-    exit()
+    #exit()
     
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:

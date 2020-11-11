@@ -52,15 +52,13 @@ class Wav2vecCriterion(FairseqCriterion):
 
         losses = []
 
-        import pdb 
-        print(self.infonce)
-        pdb.set_trace()
         if self.infonce:
             loss = F.cross_entropy(
                 logits,
                 target,
                 reduction="sum" if reduce else "none",
             )
+            print('info nce loss is', loss)
         else:
             loss = F.binary_cross_entropy_with_logits(
                 logits,

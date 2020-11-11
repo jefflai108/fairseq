@@ -521,14 +521,20 @@ class Wav2Vec2Model(BaseFairseqModel):
         return negs, neg_idxs
 
     def compute_preds(self, x, y, negatives):
+        print('y', torch.isinf(y).any())
+        print('negatives', torch.isinf(negatives).any())
 
         neg_is_pos = (y == negatives).all(-1)
         y = y.unsqueeze(0)
         targets = torch.cat([y, negatives], dim=0)
+        print('targets', torch.isinf(targets).any())
 
         logits = torch.cosine_similarity(x.float(), targets.float(), dim=-1).type_as(x)
 
+        print('logits', torch.isinf(logits).any())
         logits /= self.logit_temp
+        print(self.logit_temp)
+        print('logits', torch.isinf(logits).any())
 
         if neg_is_pos.any():
             logits[1:][neg_is_pos] = float("-inf")
@@ -560,6 +566,8 @@ class Wav2Vec2Model(BaseFairseqModel):
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
+
+        print('feature extractor is', torch.isinf(features).any())
 
         features = self.dropout_input(features)
         unmasked_features = self.dropout_features(unmasked_features)
@@ -601,6 +609,7 @@ class Wav2Vec2Model(BaseFairseqModel):
             mask_indices = None
 
         x = self.encoder(x, padding_mask=padding_mask)
+        print('encoder output is', torch.isinf(x).any())
 
         if features_only:
             return {"x": x, "padding_mask": padding_mask}
@@ -640,15 +649,19 @@ class Wav2Vec2Model(BaseFairseqModel):
                 negs = self.project_q(negs)
             else:
                 negs, _ = self.sample_negatives(y, y.size(1))
-
+    
+        print('x is', torch.isinf(x).any())
         x = x[mask_indices].view(x.size(0), -1, x.size(-1))
+        print('x is', torch.isinf(x).any())
 
         if self.target_glu:
             y = self.target_glu(y)
             negs = self.target_glu(negs)
 
         x = self.final_proj(x)
+        print('x is', torch.isinf(x).any())
         x = self.compute_preds(x, y, negs)
+        print('x is', torch.isinf(x).any())
 
         result = {"x": x, "padding_mask": padding_mask, "features_pen": features_pen}
 
@@ -675,6 +688,7 @@ class Wav2Vec2Model(BaseFairseqModel):
 
     def get_logits(self, net_output):
         logits = net_output["x"]
+        print('logits is', torch.isinf(logits).any())
         logits = logits.transpose(0, 2)
         logits = logits.reshape(-1, logits.size(-1))
         return logits

@@ -52,9 +52,11 @@ class Wav2vecCriterion(FairseqCriterion):
         """
 
         # student
+        print('sample', sample["net_input"]["source"], torch.isinf(sample["net_input"]["source"]).any())
         teacher_sample = copy.deepcopy(sample)
         net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
+        print('student logis', logits, torch.isinf(logits).any())
         target = model.get_targets(sample, net_output)
     
         # teacher -- not updated
@@ -79,16 +81,19 @@ class Wav2vecCriterion(FairseqCriterion):
         losses = []
 
         if self.infonce:
-            kldiv_loss_fct = torch.nn.KLDivLoss(reduction="batchmean")
+            kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum" if reduce else "none")
+            print('student logis', logits, torch.isinf(logits).any())
+            print('teacher logits', teacher_logits, torch.isinf(teacher_logits).any())
             loss = kldiv_loss_fct(logits, teacher_logits) * (2.0) ** 2
-            loss = torch.mean(loss)
-            '''
+            #loss = torch.mean(loss)
+            print('kl loss is', loss)
             loss = F.cross_entropy(
                 logits,
                 target,
                 reduction="sum" if reduce else "none",
             )
-            '''
+            print('orig loss is', loss)
+            exit()
         else:
             loss = F.binary_cross_entropy_with_logits(
                 logits,
