@@ -93,7 +93,7 @@ def main(cfg: DictConfig) -> None:
         sum(p.numel() for p in model.parameters() if p.requires_grad),
     ))
 
-    #exit()
+    exit()
     
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
