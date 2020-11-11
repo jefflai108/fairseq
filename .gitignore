@@ -133,9 +133,13 @@ data-bin/
 experimental/*
 
 
-# Custom 
+# exp directory at mit 
 examples/wav2vec/exp
+# apex 
 apex/
+# pretrained model at mit 
 examples/wav2vec/wav2vec_small.pt
+# slurm related stuff at mit 
+examples/wav2vec/{slurm.conf,cmd.sh,path.sh,grid_search.sh}
 
 

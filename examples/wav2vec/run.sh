@@ -1,6 +1,6 @@
 #!/bin/bash 
 
-stage=3
+stage=$1
 ngpu=1
 
 if [ $stage -eq 0 ]; then 
@@ -41,8 +41,8 @@ if [ $stage -eq 3 ]; then
 	## train from scratch commands
     train_subset=train-960
     valid_subset=dev-clean
-    expdir=exp/$train_subset
-    datadir=data/$train_subset
+    expdir=exp/${train_subset}/att_head_6-embed_dim_480-ffn_embed_dim_1920-layer_6-latent_vars_160
+    datadir=data/${train_subset}
     mkdir -p $expdir
 
 	python /data/sls/temp/clai24/knowledge-transfer/fairseq/train.py --distributed-world-size ${ngpu} --distributed-port 0 $datadir --save-dir $expdir \
@@ -60,8 +60,31 @@ if [ $stage -eq 3 ]; then
         --encoder-attention-heads 6 --encoder-embed-dim 480 --encoder-ffn-embed-dim 1920 --encoder-layers 6 --latent-vars 160 2>&1 | tee $expdir/train.log
 fi
 
+if [ $stage -eq 4 ]; then
+	## train from scratch commands
+    train_subset=train-960
+    valid_subset=dev-clean
+    expdir=exp/${train_subset}/att_head_6-embed_dim_480-ffn_embed_dim_1920-layer_3-latent_vars_160
+    datadir=data/${train_subset}
+    mkdir -p $expdir
 
-if [ $stage -eq 4 ]; then 
+	python /data/sls/temp/clai24/knowledge-transfer/fairseq/train.py --distributed-world-size ${ngpu} --distributed-port 0 $datadir --save-dir $expdir \
+        --train-subset $train_subset --valid-subset $valid_subset \
+		--num-workers 8 --task audio_pretraining --criterion wav2vec_kd --arch wav2vec2 \
+		--log-keys '["prob_perplexity","code_perplexity","temp"]' --quantize-targets --extractor-mode default \
+		--conv-feature-layers '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] * 2' --final-dim 256 \
+		--latent-groups 2 --latent-temp '(2,0.5,0.999995)' --infonce --optimizer adam \
+		--adam-betas '(0.9,0.98)' --adam-eps 1e-06 --lr-scheduler polynomial_decay --total-num-update 400000 \
+		--lr 0.0005 --warmup-updates 32000 --mask-length 10 --mask-prob 0.65 --mask-selection static --mask-other 0 \
+		--encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
+		--loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
+		--max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
+		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+        --encoder-attention-heads 6 --encoder-embed-dim 480 --encoder-ffn-embed-dim 1920 --encoder-layers 3 --latent-vars 160 2>&1 | tee $expdir/train.log
+fi
+
+
+if [ $stage -eq 100 ]; then 
     WAV_PATH=test.wav
     TARGET_DICT_PATH=/data/sls/temp/clai24/amazon_intern/fairseq/examples/wav2vec/data/train-clean-100/dict.ltr.txt
     #python recognize.py --wav_path $WAV_PATH --w2v_path exp/train-clean-100/checkpoint_best.pt --target_dict_path $TARGET_DICT_PATH
