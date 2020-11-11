@@ -520,28 +520,36 @@ class Wav2Vec2Model(BaseFairseqModel):
         )  # to NxBxTxC
         return negs, neg_idxs
 
+    def sample_negatives_from_existing_index(self, y, neg_idxs, num):
+        if self.n_negatives == 0 and self.cross_sample_negatives == 0:
+            return y.new(0)
+
+        bsz, tsz, fsz = y.shape
+        y = y.view(-1, fsz)  # BTC => (BxT)C
+        negs = y[neg_idxs.view(-1)]
+        negs = negs.view(
+            bsz, num, self.n_negatives + self.cross_sample_negatives, fsz
+        ).permute(
+            2, 0, 1, 3
+        )  # to NxBxTxC
+        return negs, neg_idxs
+
     def compute_preds(self, x, y, negatives):
-        print('y', torch.isinf(y).any())
-        print('negatives', torch.isinf(negatives).any())
 
         neg_is_pos = (y == negatives).all(-1)
         y = y.unsqueeze(0)
         targets = torch.cat([y, negatives], dim=0)
-        print('targets', torch.isinf(targets).any())
 
         logits = torch.cosine_similarity(x.float(), targets.float(), dim=-1).type_as(x)
 
-        print('logits', torch.isinf(logits).any())
         logits /= self.logit_temp
-        print(self.logit_temp)
-        print('logits', torch.isinf(logits).any())
 
         if neg_is_pos.any():
             logits[1:][neg_is_pos] = float("-inf")
 
         return logits
 
-    def forward(self, source, padding_mask=None, mask=True, features_only=False, existing_masks=None):
+    def forward(self, source, padding_mask=None, mask=True, features_only=False, existing_masks=None, existing_neg_idxs=None):
 
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
@@ -567,7 +575,6 @@ class Wav2Vec2Model(BaseFairseqModel):
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
 
-        print('feature extractor is', torch.isinf(features).any())
 
         features = self.dropout_input(features)
         unmasked_features = self.dropout_features(unmasked_features)
@@ -609,7 +616,6 @@ class Wav2Vec2Model(BaseFairseqModel):
             mask_indices = None
 
         x = self.encoder(x, padding_mask=padding_mask)
-        print('encoder output is', torch.isinf(x).any())
 
         if features_only:
             return {"x": x, "padding_mask": padding_mask}
@@ -625,12 +631,20 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = self.project_q(y)
 
             if self.negatives_from_everywhere:
-                neg_cands, *_ = self.quantizer(unmasked_features, produce_targets=False)
-                negs, _ = self.sample_negatives(neg_cands, y.size(1))
-                negs = self.project_q(negs)
+                if existing_neg_idxs is not None:
+                    neg_cands, *_ = self.quantizer(unmasked_features, produce_targets=False)
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(neg_cands, existing_neg_idxs, y.size(1))
+                    negs = self.project_q(negs)
+                else:
+                    neg_cands, *_ = self.quantizer(unmasked_features, produce_targets=False)
+                    negs, neg_idxs = self.sample_negatives(neg_cands, y.size(1))
+                    negs = self.project_q(negs)
 
             else:
-                negs, _ = self.sample_negatives(y, y.size(1))
+                if existing_neg_idxs is not None:
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(y, existing_neg_idxs, y.size(1))
+                else:
+                    negs, neg_idxs = self.sample_negatives(y, y.size(1))
 
             if self.codebook_negatives > 0:
                 cb_negs = self.quantizer.sample_from_codebook(
@@ -645,23 +659,28 @@ class Wav2Vec2Model(BaseFairseqModel):
             y = self.project_q(y)
 
             if self.negatives_from_everywhere:
-                negs, _ = self.sample_negatives(unmasked_features, y.size(1))
-                negs = self.project_q(negs)
+                if existing_neg_idxs is not None:
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(unmasked_features, existing_neg_idxs, y.size(1))
+                    negs = self.project_q(negs)
+                else:
+                    negs, neg_idxs = self.sample_negatives(unmasked_features, y.size(1))
+                    negs = self.project_q(negs)
             else:
                 negs, _ = self.sample_negatives(y, y.size(1))
     
-        print('x is', torch.isinf(x).any())
+                if existing_neg_idxs is not None:
+                    negs, neg_idxs = self.sample_negatives_from_existing_index(y, existing_neg_idxs, y.size(1))
+                else:
+                    negs, neg_idxs = self.sample_negatives(y, y.size(1))
+
         x = x[mask_indices].view(x.size(0), -1, x.size(-1))
-        print('x is', torch.isinf(x).any())
 
         if self.target_glu:
             y = self.target_glu(y)
             negs = self.target_glu(negs)
 
         x = self.final_proj(x)
-        print('x is', torch.isinf(x).any())
         x = self.compute_preds(x, y, negs)
-        print('x is', torch.isinf(x).any())
 
         result = {"x": x, "padding_mask": padding_mask, "features_pen": features_pen}
 
@@ -672,6 +691,7 @@ class Wav2Vec2Model(BaseFairseqModel):
             result["temp"] = curr_temp
             result["mask_indices"] = mask_indices
             result["mask_channel_indices"] = mask_channel_indices
+            result["neg_idxs"] = neg_idxs
 
         return result
 
@@ -688,7 +708,6 @@ class Wav2Vec2Model(BaseFairseqModel):
 
     def get_logits(self, net_output):
         logits = net_output["x"]
-        print('logits is', torch.isinf(logits).any())
         logits = logits.transpose(0, 2)
         logits = logits.reshape(-1, logits.size(-1))
         return logits
