@@ -548,10 +548,10 @@ class Wav2Vec2Model(BaseFairseqModel):
         # in either CE or KL. However, we were getting some issue with "-inf", so instead 
         # we replaced it with a large negative value e.g. -100000
         if neg_is_pos.any(): 
-            #logits[1:][neg_is_pos] = float("-inf")
-            logits[1:][neg_is_pos] = -100000
-
-        return logits
+            logits[1:][neg_is_pos] = float("-inf")
+            #logits[1:][neg_is_pos] = -100000
+        
+        return logits, neg_is_pos
 
     def forward(self, source, padding_mask=None, mask=True, features_only=False, existing_masks=None, existing_neg_idxs=None):
 
@@ -684,9 +684,9 @@ class Wav2Vec2Model(BaseFairseqModel):
             negs = self.target_glu(negs)
 
         x = self.final_proj(x)
-        x = self.compute_preds(x, y, negs)
+        x, neg_is_pos = self.compute_preds(x, y, negs)
 
-        result = {"x": x, "padding_mask": padding_mask, "features_pen": features_pen}
+        result = {"x": x, "padding_mask": padding_mask, "features_pen": features_pen, "neg_is_pos": neg_is_pos}
 
         if prob_ppl is not None:
             result["prob_perplexity"] = prob_ppl
@@ -715,6 +715,12 @@ class Wav2Vec2Model(BaseFairseqModel):
         logits = logits.transpose(0, 2)
         logits = logits.reshape(-1, logits.size(-1))
         return logits
+    
+    def get_neg_is_pos(self, net_output):
+        neg_is_pos = net_output["neg_is_pos"]
+        neg_is_pos = neg_is_pos.transpose(0, 2)
+        neg_is_pos = neg_is_pos.reshape(-1, neg_is_pos.size(-1))
+        return neg_is_pos
 
     def get_targets(self, sample, net_output, expand_steps=True):
         x = net_output["x"]

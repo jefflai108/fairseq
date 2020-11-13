@@ -55,22 +55,24 @@ class Wav2vecCriterion(FairseqCriterion):
         teacher_sample = copy.deepcopy(sample)
         net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
+        neg_is_pos = model.get_neg_is_pos(net_output)
         target = model.get_targets(sample, net_output)
         #if torch.isinf(logits).any():
         #    print("inf exist in student logits")
         #    import pdb
         #    pdb.set_trace()
             
-    
         # teacher -- not updated
         with torch.no_grad():
             existing_masks = {"mask_indices":net_output["mask_indices"], "mask_channel_indices":net_output["mask_channel_indices"]}
             existing_neg_idxs = net_output["neg_idxs"]
             teacher_net_output = self.teacher_model(**teacher_sample["net_input"], existing_masks=existing_masks, existing_neg_idxs=existing_neg_idxs)
             teacher_logits = self.teacher_model.get_logits(teacher_net_output).float()
+            teacher_neg_is_pos = self.teacher_model.get_neg_is_pos(teacher_net_output)
             teacher_target = self.teacher_model.get_targets(teacher_sample, teacher_net_output)
             try:
                 assert (teacher_target == target).all()
+                #assert (teacher_neg_is_pos == neg_is_pos).all()
             except:
                 import pdb
                 pdb.set_trace()
@@ -88,13 +90,24 @@ class Wav2vecCriterion(FairseqCriterion):
 
         losses = []
 
+        torch.autograd.set_detect_anomaly(True)
         if self.infonce:
             kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum" if reduce else "none")
             # apply log_softmax on the logits before KL
+            # logits[1:][neg_is_pos]
+
+            student_dist = F.log_softmax(logits, dim=-1)
+            print('studentdis', student_dist.shape)
+            print('neg_is_pos', neg_is_pos.shape)
+            student_dist[:,1:][neg_is_pos] = float(1e-20)
+            teacher_dist = F.softmax(teacher_logits, dim=-1)
+            print('teacher_dis', teacher_dist.shape)
+            teacher_dist[:,1:][teacher_neg_is_pos] = float(1e-20)
             loss = kldiv_loss_fct(
-                    F.log_softmax(logits, dim=-1),
-                    F.softmax(teacher_logits, dim=-1),
+                    student_dist,
+                    teacher_dist,
                     ) 
+            print('loss', loss)
             if torch.isinf(loss).any():
                 import pdb
                 pdb.set_trace()
