@@ -141,7 +141,7 @@ if [ $stage -eq -100 ]; then
 
 	python /data/sls/temp/clai24/knowledge-transfer/fairseq/train.py --distributed-world-size ${ngpu} --distributed-port 0 $datadir --save-dir $expdir \
         --train-subset $train_subset --valid-subset $valid_subset \
-		--num-workers 8 --task audio_pretraining --criterion wav2vec --arch wav2vec2 \
+		--num-workers 8 --task audio_pretraining --criterion wav2vec_kd --arch wav2vec2 \
 		--log-keys '["prob_perplexity","code_perplexity","temp"]' --quantize-targets --extractor-mode default \
 		--conv-feature-layers '[(512, 10, 5)] + [(512, 3, 2)] * 4 + [(512,2,2)] * 2' --final-dim 256 \
 		--latent-groups 2 --latent-temp '(2,0.5,0.999995)' --infonce --optimizer adam \
@@ -150,15 +150,16 @@ if [ $stage -eq -100 ]; then
 		--encoder-layerdrop 0.05 --dropout-input 0.1 --dropout-features 0.1 --feature-grad-mult 0.1 \
 		--loss-weights '[0.1, 10]' --conv-pos 128 --conv-pos-groups 16 --num-negatives 100 --cross-sample-negatives 0 \
 		--max-sample-size 250000 --min-sample-size 32000 --dropout 0.1 --attention-dropout 0.1 --weight-decay 0.01 \
-		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d 2>&1 | tee $expdir/train.log
+		--max-tokens 1400000 --max-update 400000 --skip-invalid-size-inputs-valid-test --ddp-backend no_c10d \
+        2>&1 | tee $expdir/train.log
 fi
 
 
 # dummy run 
 if [ $stage -eq 100 ]; then
 	## train from scratch commands
-    train_subset=train-960
-    valid_subset=dev-clean
+    train_subset=train-clean-100
+    valid_subset=train-clean-100
     expdir=exp/debug
     datadir=data/debug
     mkdir -p $expdir

@@ -120,6 +120,7 @@ class Wav2vecCriterion(FairseqCriterion):
         if self.loss_weights is not None:
             assert hasattr(model, "get_extra_losses")
             extra_losses = model.get_extra_losses(net_output)
+
             if torch.is_tensor(extra_losses):
                 extra_losses = [extra_losses]
             if len(self.loss_weights) == 1 and len(extra_losses) != 1:
