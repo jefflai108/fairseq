@@ -20,7 +20,8 @@ class Wav2vecCriterion(FairseqCriterion):
                  loss_weights=None, 
                  log_keys=None, 
                  distill_with_kl=False, 
-                 distill_with_ce=False):
+                 distill_with_ce=False,
+                 distill_with_ce_mix=False):
         super().__init__(task)
         self.infonce = infonce
         self.loss_weights = None if loss_weights is None else eval(loss_weights)
@@ -28,6 +29,7 @@ class Wav2vecCriterion(FairseqCriterion):
         self.teacher_model = None
         self.distill_with_kl = distill_with_kl
         self.distill_with_ce = distill_with_ce
+        self.distill_with_ce_mix = distill_with_ce_mix
 
     @staticmethod
     def add_args(parser):
@@ -42,7 +44,9 @@ class Wav2vecCriterion(FairseqCriterion):
         parser.add_argument('--distill-with-kl', action='store_true',
                             help='KD with KL loss')
         parser.add_argument('--distill-with-ce', action='store_true',
-                            help='KD with CE loss')
+                            help='KD with CE loss from teacher')
+        parser.add_argument('--distill-with-ce-mix', action='store_true',
+                            help='KD with CE loss from teacher + data')
         # fmt: on
 
     def add_teacher(self, teacher_model):
@@ -129,7 +133,7 @@ class Wav2vecCriterion(FairseqCriterion):
                 #loss = torch.mean(loss)
 
             # KD with CE between 
-            elif self.distill_with_ce:
+            elif self.distill_with_ce or self.distill_with_ce_mix:
                 _, soft_target = torch.max(teacher_mod_logits, keepdim=False, dim=-1) # retrieve the soft-target from teacher dist
                 # below, we break down cross-entropy loss to log_softmax and nll-loss
                 #log_softmax = torch.nn.LogSoftmax(dim=-1)
@@ -151,7 +155,10 @@ class Wav2vecCriterion(FairseqCriterion):
                     target,
                     reduction="sum" if reduce else "none",
                 )
-                loss = data_loss + teacher_loss
+                if self.distill_with_ce:
+                    loss = teacher_loss 
+                elif self.distill_with_ce_mix:
+                    loss = teacher_loss + data_loss
             else: 
                 logging.info("No KD Loss is specified!")
                 exit()
