@@ -15,13 +15,19 @@ from fairseq.logging.meters import safe_round
 
 @register_criterion("wav2vec_kd")
 class Wav2vecCriterion(FairseqCriterion):
-    def __init__(self, task, infonce=False, loss_weights=None, log_keys=None):
+    def __init__(self, task, 
+                 infonce=False, 
+                 loss_weights=None, 
+                 log_keys=None, 
+                 distill_with_kl=False, 
+                 distill_with_ce=False):
         super().__init__(task)
         self.infonce = infonce
         self.loss_weights = None if loss_weights is None else eval(loss_weights)
         self.log_keys = [] if log_keys is None else eval(log_keys)
         self.teacher_model = None
-        print('shit shit')
+        self.distill_with_kl = distill_with_kl
+        self.distill_with_ce = distill_with_ce
 
     @staticmethod
     def add_args(parser):
@@ -33,6 +39,10 @@ class Wav2vecCriterion(FairseqCriterion):
                             help='weights for additional loss terms (not first one)')
         parser.add_argument('--log-keys', type=str, default=None,
                             help='output keys to log')
+        parser.add_argument('--distill-with-kl', action='store_true',
+                            help='KD with KL loss')
+        parser.add_argument('--distill-with-ce', action='store_true',
+                            help='KD with CE loss')
         # fmt: on
 
     def add_teacher(self, teacher_model):
@@ -40,7 +50,7 @@ class Wav2vecCriterion(FairseqCriterion):
         add teacher model for KD
         """
         self.teacher_model = teacher_model
-        #self.teacher_model.eval()
+        self.teacher_model.eval()
 
     def forward(self, model, sample, reduce=True, log_pred=False):
         """Compute the loss for the given sample.
@@ -55,6 +65,7 @@ class Wav2vecCriterion(FairseqCriterion):
         teacher_sample = copy.deepcopy(sample)
         net_output = model(**sample["net_input"])
         logits = model.get_logits(net_output).float()
+        mod_logits = model.get_mod_logits(net_output).float()
         neg_is_pos = model.get_neg_is_pos(net_output)
         target = model.get_targets(sample, net_output)
         #if torch.isinf(logits).any():
@@ -68,8 +79,10 @@ class Wav2vecCriterion(FairseqCriterion):
             existing_neg_idxs = net_output["neg_idxs"]
             teacher_net_output = self.teacher_model(**teacher_sample["net_input"], existing_masks=existing_masks, existing_neg_idxs=existing_neg_idxs)
             teacher_logits = self.teacher_model.get_logits(teacher_net_output).float()
+            teacher_mod_logits = self.teacher_model.get_mod_logits(teacher_net_output).float()
             teacher_neg_is_pos = self.teacher_model.get_neg_is_pos(teacher_net_output)
             teacher_target = self.teacher_model.get_targets(teacher_sample, teacher_net_output)
+
             try:
                 assert (teacher_target == target).all()
                 #assert (teacher_neg_is_pos == neg_is_pos).all()
@@ -92,32 +105,56 @@ class Wav2vecCriterion(FairseqCriterion):
 
         torch.autograd.set_detect_anomaly(True)
         if self.infonce:
-            kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum" if reduce else "none")
-            # apply log_softmax on the logits before KL
-            # logits[1:][neg_is_pos]
+            # KD with KL between teacher and student distributions
+            if self.distill_with_kl:
+                kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum" if reduce else "none")
+                # apply log_softmax on the logits before KL
+                # logits[1:][neg_is_pos]
 
-            student_dist = F.log_softmax(logits, dim=-1)
-            print('studentdis', student_dist.shape)
-            print('neg_is_pos', neg_is_pos.shape)
-            student_dist[:,1:][neg_is_pos] = float(1e-20)
-            teacher_dist = F.softmax(teacher_logits, dim=-1)
-            print('teacher_dis', teacher_dist.shape)
-            teacher_dist[:,1:][teacher_neg_is_pos] = float(1e-20)
-            loss = kldiv_loss_fct(
-                    student_dist,
-                    teacher_dist,
-                    ) 
-            print('loss', loss)
-            if torch.isinf(loss).any():
-                import pdb
-                pdb.set_trace()
-            #loss = torch.mean(loss)
-            
-            #loss = F.cross_entropy(
-            #    logits,
-            #    target,
-            #    reduction="sum" if reduce else "none",
-            #)
+                student_dist = F.log_softmax(logits, dim=-1)
+                print('studentdis', student_dist.shape)
+                print('neg_is_pos', neg_is_pos.shape)
+                student_dist[:,1:][neg_is_pos] = float(1e-20)
+                teacher_dist = F.softmax(teacher_logits, dim=-1)
+                print('teacher_dis', teacher_dist.shape)
+                teacher_dist[:,1:][teacher_neg_is_pos] = float(1e-20)
+                loss = kldiv_loss_fct(
+                        student_dist,
+                        teacher_dist,
+                        ) 
+                print('loss', loss)
+                if torch.isinf(loss).any():
+                    import pdb
+                    pdb.set_trace()
+                #loss = torch.mean(loss)
+
+            # KD with CE between 
+            elif self.distill_with_ce:
+                _, soft_target = torch.max(teacher_mod_logits, keepdim=False, dim=-1) # retrieve the soft-target from teacher dist
+                # below, we break down cross-entropy loss to log_softmax and nll-loss
+                #log_softmax = torch.nn.LogSoftmax(dim=-1)
+                #student_dist = log_softmax(logits)
+                #mod_student_dist = student_dist.clone() # for avoiding in-place modification during backprop (https://github.com/NVlabs/FUNIT/issues/23)
+                #mod_student_dist[student_dist == -float("Inf")] = 0 # ignore neg_is_pos
+                #print(mod_student_dist)
+                #nll_loss = torch.nn.NLLLoss(reduction="sum" if reduce else "none")
+                #loss = nll_loss(mod_student_dist, soft_target)
+
+                teacher_loss = F.cross_entropy( # CE loss with teacher soft target 
+                    logits, # do not ignore neg_is_pos since soft_target can be neg_is_pos
+                    soft_target,
+                    reduction="sum" if reduce else "none",
+                )
+
+                data_loss = F.cross_entropy( # original CE loss
+                    mod_logits, # ignored neg_is_pos by assigning them to -inf
+                    target,
+                    reduction="sum" if reduce else "none",
+                )
+                loss = data_loss + teacher_loss
+            else: 
+                logging.info("No KD Loss is specified!")
+                exit()
             
         else:
             loss = F.binary_cross_entropy_with_logits(

@@ -543,15 +543,13 @@ class Wav2Vec2Model(BaseFairseqModel):
         logits = torch.cosine_similarity(x.float(), targets.float(), dim=-1).type_as(x)
 
         logits /= self.logit_temp
-
-        # assign score "-inf" to wrong assignments so that their scores exp(-inf) == 0 
-        # in either CE or KL. However, we were getting some issue with "-inf", so instead 
-        # we replaced it with a large negative value e.g. -100000
-        if neg_is_pos.any(): 
-            logits[1:][neg_is_pos] = float("-inf")
-            #logits[1:][neg_is_pos] = -100000
         
-        return logits, neg_is_pos
+        mod_logits = logits.clone()
+        # assign score "-inf" to wrong assignments so that their scores exp(-inf) == 0 
+        if neg_is_pos.any(): 
+            mod_logits[1:][neg_is_pos] = float("-inf")
+        
+        return (logits, mod_logits), neg_is_pos
 
     def forward(self, source, padding_mask=None, mask=True, features_only=False, existing_masks=None, existing_neg_idxs=None):
 
@@ -684,9 +682,9 @@ class Wav2Vec2Model(BaseFairseqModel):
             negs = self.target_glu(negs)
 
         x = self.final_proj(x)
-        x, neg_is_pos = self.compute_preds(x, y, negs)
+        (x, mod_x), neg_is_pos = self.compute_preds(x, y, negs)
 
-        result = {"x": x, "padding_mask": padding_mask, "features_pen": features_pen, "neg_is_pos": neg_is_pos}
+        result = {"x": x, "mod_x": mod_x, "padding_mask": padding_mask, "features_pen": features_pen, "neg_is_pos": neg_is_pos}
 
         if prob_ppl is not None:
             result["prob_perplexity"] = prob_ppl
@@ -716,6 +714,12 @@ class Wav2Vec2Model(BaseFairseqModel):
         logits = logits.reshape(-1, logits.size(-1))
         return logits
     
+    def get_mod_logits(self, net_output):
+        logits = net_output["mod_x"]
+        logits = logits.transpose(0, 2)
+        logits = logits.reshape(-1, logits.size(-1))
+        return logits
+
     def get_neg_is_pos(self, net_output):
         neg_is_pos = net_output["neg_is_pos"]
         neg_is_pos = neg_is_pos.transpose(0, 2)
