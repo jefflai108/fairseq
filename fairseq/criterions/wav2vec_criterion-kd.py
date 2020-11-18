@@ -21,7 +21,8 @@ class Wav2vecCriterion(FairseqCriterion):
                  log_keys=None, 
                  distill_with_kl=False, 
                  distill_with_ce=False,
-                 distill_with_ce_mix=False):
+                 distill_with_ce_mix=False, 
+                 distill_with_ce_data=False):
         super().__init__(task)
         self.infonce = infonce
         self.loss_weights = None if loss_weights is None else eval(loss_weights)
@@ -30,6 +31,7 @@ class Wav2vecCriterion(FairseqCriterion):
         self.distill_with_kl = distill_with_kl
         self.distill_with_ce = distill_with_ce
         self.distill_with_ce_mix = distill_with_ce_mix
+        self.distill_with_ce_data = distill_with_ce_data
 
     @staticmethod
     def add_args(parser):
@@ -47,6 +49,9 @@ class Wav2vecCriterion(FairseqCriterion):
                             help='KD with CE loss from teacher')
         parser.add_argument('--distill-with-ce-mix', action='store_true',
                             help='KD with CE loss from teacher + data')
+        parser.add_argument('--distill-with-ce-data', action='store_true',
+                            help='KD with CE loss from data')
+
         # fmt: on
 
     def add_teacher(self, teacher_model):
@@ -112,28 +117,18 @@ class Wav2vecCriterion(FairseqCriterion):
             # KD with KL between teacher and student distributions
             if self.distill_with_kl:
                 kldiv_loss_fct = torch.nn.KLDivLoss(reduction="sum" if reduce else "none")
-                # apply log_softmax on the logits before KL
-                # logits[1:][neg_is_pos]
-
-                student_dist = F.log_softmax(logits, dim=-1)
-                print('studentdis', student_dist.shape)
-                print('neg_is_pos', neg_is_pos.shape)
-                student_dist[:,1:][neg_is_pos] = float(1e-20)
+                student_dist = F.log_softmax(logits, dim=-1) # apply log_softmax on the logits before KL
                 teacher_dist = F.softmax(teacher_logits, dim=-1)
-                print('teacher_dis', teacher_dist.shape)
-                teacher_dist[:,1:][teacher_neg_is_pos] = float(1e-20)
                 loss = kldiv_loss_fct(
                         student_dist,
                         teacher_dist,
                         ) 
-                print('loss', loss)
                 if torch.isinf(loss).any():
                     import pdb
                     pdb.set_trace()
-                #loss = torch.mean(loss)
 
             # KD with CE between 
-            elif self.distill_with_ce or self.distill_with_ce_mix:
+            elif self.distill_with_ce or self.distill_with_ce_mix or self.distill_with_ce_data:
                 _, soft_target = torch.max(teacher_mod_logits, keepdim=False, dim=-1) # retrieve the soft-target from teacher dist
                 # below, we break down cross-entropy loss to log_softmax and nll-loss
                 #log_softmax = torch.nn.LogSoftmax(dim=-1)
@@ -159,6 +154,8 @@ class Wav2vecCriterion(FairseqCriterion):
                     loss = teacher_loss 
                 elif self.distill_with_ce_mix:
                     loss = teacher_loss + data_loss
+                elif self.distill_with_ce_data:
+                    loss = data_loss
             else: 
                 logging.info("No KD Loss is specified!")
                 exit()
